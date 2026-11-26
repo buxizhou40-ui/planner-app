@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -19,20 +19,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 安装 Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 安装 SDK 34
-        run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
-
       - name: 安装 Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
 
-      - name: 编译 Debug APK
+      - name: 准备 Android SDK（用 runner 预装的）
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "Android SDK 路径: $SDK"
+          ls "$SDK/platforms" 2>/dev/null || echo "（platforms 目录为空）"
+          CMDLINE=$(ls -d "$SDK"/cmdline-tools/*/bin 2>/dev/null | tail -1)
+          echo "sdkmanager: $CMDLINE"
+          if [ -n "$CMDLINE" ]; then
+            yes | "$CMDLINE/sdkmanager" --licenses > /dev/null 2>&1 || true
+            "$CMDLINE/sdkmanager" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3 || true
+          fi
+          echo "sdk.dir=$SDK" > local.properties
+
+      - name: 编译 APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: 上传 APK
